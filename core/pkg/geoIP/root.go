@@ -21,7 +21,7 @@ type GeoIP struct {
 }
 
 func GetGeoIP() (*GeoIP, error) {
-	db, err := ip2location.OpenDB("./geoIP/IP2LOCATION-LITE-DB11.BIN")
+	db, err := ip2location.OpenDB("./data/geoIP/IP2LOCATION-LITE-DB3.BIN")
 	if err != nil {
 		return nil, err
 	}
