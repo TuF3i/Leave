@@ -12,12 +12,15 @@ type LeaveArticle struct {
 	UpdatedAt time.Time      `gorm:"column:updated_at;type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;type:timestamp;index"`
 
-	ArticleID   int64  `gorm:"column:article_id;type:bigint;not null;uniqueIndex"`
+	ArticleID   uint32 `gorm:"column:article_id;type:bigint;not null;uniqueIndex"`
 	AuthorID    int64  `gorm:"column:author_id;type:bigint;not null;index"`
 	Title       string `gorm:"column:title;type:varchar(255);not null"`
 	Description string `gorm:"column:description;type:varchar(255);not null"`
 	Content     string `gorm:"column:content;type:text;not null"`
+	Slug        string `gorm:"column:slug;type:varchar(50);uniqueIndex:uk_tag_slug;not null;comment:URL友好标识（唯一）" json:"slug"`
 	Viewable    bool   `gorm:"column:viewable;type:tinyint(1);not null;default:1;comment:是否可见 1-可见 0-不可见"`
+	CoverUrl    string `gorm:"column:cover_url;type:varchar(100);not null;comment:封面URL" json:"cover_url"`
+	BgUrl       string `gorm:"column:bg_url;type:varchar(100);not null;comment:背景URL" json:"bg_url"`
 
 	Tags []Tag `gorm:"many2many:post_tags;joinForeignKey:article_id;joinReferences:tag_id" json:"tags"`
 

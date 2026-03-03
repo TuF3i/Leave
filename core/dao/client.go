@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func (r *Dao[T]) initPgSQL() error {
+func (r *Dao) initPgSQL() error {
 	// 创建连接URL
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s "+
@@ -56,7 +56,7 @@ func (r *Dao[T]) initPgSQL() error {
 	return nil
 }
 
-func (r *Dao[T]) initMiniRedis() error {
+func (r *Dao) initMiniRedis() error {
 	s, err := miniredis.Run()
 	if err != nil {
 		return fmt.Errorf("start miniredis error: %v", err.Error())

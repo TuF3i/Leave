@@ -26,6 +26,7 @@ type LeaveUser struct {
 	AvatarURL string `gorm:"column:avatar_url;type:varchar(255);default:'';comment:用户头像URL" json:"avatar_url"`
 	Bio       string `gorm:"column:bio;type:text;default:'';comment:用户简介" json:"bio"`
 	Email     string `gorm:"column:email;type:varchar(128);uniqueIndex;comment:用户邮箱" json:"email"`
+	Role      string `gorm:"column:role;type:varchar(100);uniqueIndex;comment:用户权限" json:"role"`
 }
 
 func (LeaveUser) TableName() string {

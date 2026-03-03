@@ -2,6 +2,7 @@ package config
 
 type Config struct {
 	ContainerName string
+	Adminer       string
 	Hertz         HertzConfig
 	PgSQL         PgSQLConfig
 	OAuth         OAuthConfig

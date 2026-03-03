@@ -20,6 +20,7 @@ func setDefault(v *viper.Viper) {
 	v.SetDefault(LEAVE_OAUTH_CLIENTID, "")
 	v.SetDefault(LEAVE_OAUTH_CLIENTSECRET, "")
 	v.SetDefault(LEAVE_OAUTH_REDIRECTURL, "")
+	v.SetDefault(LEAVE_ADMINER, "")
 }
 
 func LoadConfig() (*Config, error) {

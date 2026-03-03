@@ -20,4 +20,7 @@ var (
 	LEAVE_OAUTH_CLIENTID     = "oauth.clientid"
 	LEAVE_OAUTH_CLIENTSECRET = "oauth.clientsecret"
 	LEAVE_OAUTH_REDIRECTURL  = "oauth.redirecturl"
+
+	// 权限设置
+	LEAVE_ADMINER = "adminer"
 )

@@ -1,14 +1,25 @@
 package dao
 
 import (
+	"context"
 	"leave/core/models"
+	"leave/core/pkg/jwt"
+	"strconv"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
+func (r *Dao) getRole(uid int64) string {
+	if strconv.FormatInt(uid, 10) == r.conf.Adminer {
+		return jwt.JWT_ROLE_ADMIN
+	}
+
+	return jwt.JWT_ROLE_USER
+}
+
 // 标签
-func (r *Dao) getAllIDs(tx *gorm.DB) ([]*models.Tag, error) {
+func (r *Dao) getAllIDs(ctx context.Context, tx *gorm.DB) ([]*models.Tag, error) {
 	var tags []*models.Tag
 	err := tx.Model(&models.Tag{}).Find(&tags).Error
 	if err != nil {
@@ -18,7 +29,7 @@ func (r *Dao) getAllIDs(tx *gorm.DB) ([]*models.Tag, error) {
 	return tags, nil
 }
 
-func (r *Dao) getTags(tx *gorm.DB, tagIDs []int64) ([]*models.Tag, error) {
+func (r *Dao) getTags(ctx context.Context, tx *gorm.DB, tagIDs []int64) ([]*models.Tag, error) {
 	var tags []*models.Tag
 	err := tx.Where("tag_id IN ?", tagIDs).Find(&tags).Error
 	if err != nil {
@@ -28,18 +39,18 @@ func (r *Dao) getTags(tx *gorm.DB, tagIDs []int64) ([]*models.Tag, error) {
 	return tags, nil
 }
 
-func (r *Dao) addTag(tx *gorm.DB, tag *models.Tag) error {
+func (r *Dao) addTag(ctx context.Context, tx *gorm.DB, tag *models.Tag) error {
 	return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(tag).Error
 }
 
 // 管理员方法
-func (r *Dao) delTag(tx *gorm.DB, tagID int64) error {
+func (r *Dao) delTag(ctx context.Context, tx *gorm.DB, tagID int64) error {
 	return tx.Unscoped().Delete(&models.Tag{}, "tag_id = ?", tagID).Error
 }
 
-func (r *Dao) getArticleUnderTag(tx *gorm.DB, tagID int64) (*models.Tag, error) {
+func (r *Dao) getArticleUnderTag(ctx context.Context, tx *gorm.DB, tagSlug string) (*models.Tag, error) {
 	var data models.Tag
-	err := tx.Where("tag_id = ?", tagID).Find(&data).Error
+	err := tx.Preload("Posts", func(db *gorm.DB) *gorm.DB { return db.Omit("content") }).Where("slug = ?", tagSlug).Find(&data).Error
 	if err != nil {
 		return nil, err
 	}
@@ -48,11 +59,11 @@ func (r *Dao) getArticleUnderTag(tx *gorm.DB, tagID int64) (*models.Tag, error) 
 }
 
 // 用户
-func (r *Dao) addUser(tx *gorm.DB, user *models.LeaveUser) error {
+func (r *Dao) addUser(ctx context.Context, tx *gorm.DB, user *models.LeaveUser) error {
 	return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(user).Error
 }
 
-func (r *Dao) getAllUsers(tx *gorm.DB) ([]*models.LeaveUser, error) {
+func (r *Dao) getAllUsers(ctx context.Context, tx *gorm.DB) ([]*models.LeaveUser, error) {
 	var users []*models.LeaveUser
 	err := tx.Model(&models.LeaveUser{}).Find(&users).Error
 	if err != nil {
@@ -62,7 +73,7 @@ func (r *Dao) getAllUsers(tx *gorm.DB) ([]*models.LeaveUser, error) {
 	return users, nil
 }
 
-func (r *Dao) getUserInfo(tx *gorm.DB, uid int64) (*models.LeaveUser, error) {
+func (r *Dao) getUserInfo(ctx context.Context, tx *gorm.DB, uid int64) (*models.LeaveUser, error) {
 	var user models.LeaveUser
 	err := tx.Where("uid = ?", uid).Find(&user).Error
 	if err != nil {
@@ -73,9 +84,9 @@ func (r *Dao) getUserInfo(tx *gorm.DB, uid int64) (*models.LeaveUser, error) {
 }
 
 // 文章
-func (r *Dao) getArticleContent(tx *gorm.DB, articleID int64) (*models.LeaveArticle, error) {
+func (r *Dao) getArticleContent(ctx context.Context, tx *gorm.DB, articleSlug string) (*models.LeaveArticle, error) {
 	var article models.LeaveArticle
-	err := tx.Where("article_id = ?", articleID).First(&article).Error
+	err := tx.Where("slug = ?", articleSlug).First(&article).Error
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +94,7 @@ func (r *Dao) getArticleContent(tx *gorm.DB, articleID int64) (*models.LeaveArti
 	return &article, nil
 }
 
-func (r *Dao) addArticle(tx *gorm.DB, tagIDs []int64, article *models.LeaveArticle) error {
+func (r *Dao) addArticle(ctx context.Context, tx *gorm.DB, tagIDs []int64, article *models.LeaveArticle) error {
 	var tags []*models.Tag
 
 	err := tx.Where("tag_id IN ?", tagIDs).Find(&tags).Error
@@ -106,7 +117,11 @@ func (r *Dao) addArticle(tx *gorm.DB, tagIDs []int64, article *models.LeaveArtic
 	return nil
 }
 
-func (r *Dao) getPublicArticleList(tx *gorm.DB, page int, pageSize int) ([]*models.LeaveArticle, int64, error) {
+func (r *Dao) editArticleDetails(ctx context.Context, tx *gorm.DB, articleData *models.LeaveArticle) error {
+	return tx.Save(articleData).Error
+}
+
+func (r *Dao) getPublicArticleList(ctx context.Context, tx *gorm.DB, page int, pageSize int) ([]*models.LeaveArticle, int64, error) {
 	var articles []*models.LeaveArticle
 	var total int64
 
@@ -131,7 +146,7 @@ func (r *Dao) getPublicArticleList(tx *gorm.DB, page int, pageSize int) ([]*mode
 	return articles, total, nil
 }
 
-func (r *Dao) getMyArticleList(tx *gorm.DB, uid int64, page int, pageSize int) ([]*models.LeaveArticle, int64, error) {
+func (r *Dao) getMyArticleList(ctx context.Context, tx *gorm.DB, uid int64, page int, pageSize int) ([]*models.LeaveArticle, int64, error) {
 	var articles []*models.LeaveArticle
 	var total int64
 
@@ -157,7 +172,7 @@ func (r *Dao) getMyArticleList(tx *gorm.DB, uid int64, page int, pageSize int) (
 }
 
 // 评论
-func (r *Dao) getArticleComment(tx *gorm.DB, articleID int64, page int, pageSize int) ([]*models.Comment, int64, error) {
+func (r *Dao) getArticleComment(ctx context.Context, tx *gorm.DB, articleID int64, page int, pageSize int) ([]*models.Comment, int64, error) {
 	var comments []*models.Comment
 	var total int64
 
@@ -182,11 +197,11 @@ func (r *Dao) getArticleComment(tx *gorm.DB, articleID int64, page int, pageSize
 	return comments, total, nil
 }
 
-func (r *Dao) addArticleComment(tx *gorm.DB, comment *models.Comment) error {
+func (r *Dao) addArticleComment(ctx context.Context, tx *gorm.DB, comment *models.Comment) error {
 	return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(comment).Error
 }
 
-func (r *Dao) getCommentAuthorID(tx *gorm.DB, commentID int64) (int64, error) {
+func (r *Dao) getCommentAuthorID(ctx context.Context, tx *gorm.DB, commentID int64) (int64, error) {
 	var reply models.Comment
 
 	err := tx.Model(&models.Comment{}).Where("comment_id = ?", commentID).Select("author_id").Find(&reply).Error
@@ -197,16 +212,16 @@ func (r *Dao) getCommentAuthorID(tx *gorm.DB, commentID int64) (int64, error) {
 	return reply.AuthorID, nil
 }
 
-func (r *Dao) delComment(tx *gorm.DB, commentID int64) error {
+func (r *Dao) delComment(ctx context.Context, tx *gorm.DB, commentID int64) error {
 	// 执行物理删除
 	return tx.Unscoped().Delete(&models.Comment{}, "comment_id = ?", commentID).Error
 }
 
-func (r *Dao) addReply(tx *gorm.DB, reply *models.Reply) error {
+func (r *Dao) addReply(ctx context.Context, tx *gorm.DB, reply *models.Reply) error {
 	return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(reply).Error
 }
 
-func (r *Dao) getReplyAuthorID(tx *gorm.DB, replyID int64) (int64, error) {
+func (r *Dao) getReplyAuthorID(ctx context.Context, tx *gorm.DB, replyID int64) (int64, error) {
 	var reply models.Reply
 
 	err := tx.Model(&models.Reply{}).Where("reply_id = ?", replyID).Select("author_id").Find(&reply).Error
@@ -217,16 +232,16 @@ func (r *Dao) getReplyAuthorID(tx *gorm.DB, replyID int64) (int64, error) {
 	return reply.AuthorID, nil
 }
 
-func (r *Dao) delReply(tx *gorm.DB, replyID int64) error {
+func (r *Dao) delReply(ctx context.Context, tx *gorm.DB, replyID int64) error {
 	return tx.Unscoped().Delete(&models.Reply{}, "reply_id = ?", replyID).Error
 }
 
 // 留言版
-func (r *Dao) addLeaveMsg(tx *gorm.DB, msg *models.LeaveMsg) error {
+func (r *Dao) addLeaveMsg(ctx context.Context, tx *gorm.DB, msg *models.LeaveMsg) error {
 	return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(msg).Error
 }
 
-func (r *Dao) getLeaveMsgList(tx *gorm.DB) ([]*models.LeaveMsg, error) {
+func (r *Dao) getLeaveMsgList(ctx context.Context, tx *gorm.DB) ([]*models.LeaveMsg, error) {
 	var msgs []*models.LeaveMsg
 
 	err := tx.Model(&models.LeaveMsg{}).Find(&msgs).Error
@@ -237,7 +252,7 @@ func (r *Dao) getLeaveMsgList(tx *gorm.DB) ([]*models.LeaveMsg, error) {
 	return msgs, nil
 }
 
-func (r *Dao) getLeaveMsgAuthorID(tx *gorm.DB, MsgID int64) (int64, error) {
+func (r *Dao) getLeaveMsgAuthorID(ctx context.Context, tx *gorm.DB, MsgID int64) (int64, error) {
 	var msg models.LeaveMsg
 
 	err := tx.Model(&models.LeaveMsg{}).Where("msg_id = ?", MsgID).Select("author_id").Find(&msg).Error
@@ -248,6 +263,6 @@ func (r *Dao) getLeaveMsgAuthorID(tx *gorm.DB, MsgID int64) (int64, error) {
 	return msg.AuthorID, nil
 }
 
-func (r *Dao) delLeaveMsg(tx *gorm.DB, MsgID int64) error {
+func (r *Dao) delLeaveMsg(ctx context.Context, tx *gorm.DB, MsgID int64) error {
 	return tx.Unscoped().Delete(&models.LeaveMsg{}, "msg_id = ?", MsgID).Error
 }
