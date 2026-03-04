@@ -12,8 +12,8 @@ type Comment struct {
 	UpdatedAt time.Time      `gorm:"column:updated_at;type:timestamp;not null;default:CURRENT_TIMESTAMP;autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;type:timestamp;index"`
 
-	CommentID int64  `gorm:"column:comment_id;type:bigint;not null;uniqueIndex"`
-	ArticleID int64  `gorm:"column:article_id;type:bigint;not null;index"`
+	CommentID uint32 `gorm:"column:comment_id;type:bigint;not null;uniqueIndex"`
+	ArticleID uint32 `gorm:"column:article_id;type:bigint;not null;index"`
 	Content   string `gorm:"column:content;type:text;not null"`
 	StarNum   int    `gorm:"column:star_num;type:int;not null;default:0"`
 	AuthorID  int64  `gorm:"column:author_id;type:bigint;not null;index"`
@@ -28,8 +28,8 @@ type Reply struct {
 	UpdatedAt time.Time      `gorm:"column:updated_at;type:timestamp;not null;default:CURRENT_TIMESTAMP;autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;type:timestamp;index"`
 
-	ReplyID   int64  `gorm:"column:reply_id;type:bigint;not null;uniqueIndex"`
-	CommentID int64  `gorm:"column:comment_id;type:bigint;not null;index"`
+	ReplyID   uint32 `gorm:"column:reply_id;type:bigint;not null;uniqueIndex"`
+	CommentID uint32 `gorm:"column:comment_id;type:bigint;not null;index"`
 	Content   string `gorm:"column:content;type:text;not null"`
 	StarNum   int    `gorm:"column:star_num;type:int;not null;default:0"`
 	AuthorID  int64  `gorm:"column:author_id;type:bigint;not null;index"`

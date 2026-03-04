@@ -10,6 +10,37 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+func (r *Dao) tagsContentEqual(origin, current []*models.Tag) bool {
+	if len(origin) != len(current) {
+		return false
+	}
+
+	originIDs := make(map[uint32]bool, len(origin))
+	for _, tag := range origin {
+		if tag != nil { // 过滤空指针
+			originIDs[tag.TagID] = true
+		}
+	}
+
+	currentIDs := make(map[uint32]bool, len(current))
+	for _, tag := range current {
+		if tag != nil { // 过滤空指针
+			currentIDs[tag.TagID] = true
+		}
+	}
+
+	if len(originIDs) != len(currentIDs) {
+		return false
+	}
+	for id := range originIDs {
+		if !currentIDs[id] {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (r *Dao) getRole(uid int64) string {
 	if strconv.FormatInt(uid, 10) == r.conf.Adminer {
 		return jwt.JWT_ROLE_ADMIN
@@ -86,7 +117,17 @@ func (r *Dao) getUserInfo(ctx context.Context, tx *gorm.DB, uid int64) (*models.
 // 文章
 func (r *Dao) getArticleContent(ctx context.Context, tx *gorm.DB, articleSlug string) (*models.LeaveArticle, error) {
 	var article models.LeaveArticle
-	err := tx.Where("slug = ?", articleSlug).First(&article).Error
+	err := tx.Where("slug = ?", articleSlug).Preload("User").Preload("Tags").First(&article).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &article, nil
+}
+
+func (r *Dao) getArticleContentByID(ctx context.Context, tx *gorm.DB, articleID uint32) (*models.LeaveArticle, error) {
+	var article models.LeaveArticle
+	err := tx.Where("article_id = ?", articleID).Preload("User").Preload("Tags").First(&article).Error
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +159,15 @@ func (r *Dao) addArticle(ctx context.Context, tx *gorm.DB, tagIDs []int64, artic
 }
 
 func (r *Dao) editArticleDetails(ctx context.Context, tx *gorm.DB, articleData *models.LeaveArticle) error {
-	return tx.Save(articleData).Error
+	return tx.Model(&models.LeaveArticle{}).Where("article_id = ?", articleData.ArticleID).Updates(articleData).Error
+}
+
+func (r *Dao) editArticleTag(ctx context.Context, tx *gorm.DB, articleID uint32, origin []*models.Tag, current []*models.Tag) error {
+	if r.tagsContentEqual(origin, current) {
+		return nil
+	}
+
+	return tx.Model(&models.LeaveArticle{}).Where("article_id = ?", articleID).Association("Tags").Replace(current)
 }
 
 func (r *Dao) getPublicArticleList(ctx context.Context, tx *gorm.DB, page int, pageSize int) ([]*models.LeaveArticle, int64, error) {
@@ -201,7 +250,7 @@ func (r *Dao) addArticleComment(ctx context.Context, tx *gorm.DB, comment *model
 	return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(comment).Error
 }
 
-func (r *Dao) getCommentAuthorID(ctx context.Context, tx *gorm.DB, commentID int64) (int64, error) {
+func (r *Dao) getCommentAuthorID(ctx context.Context, tx *gorm.DB, commentID uint32) (int64, error) {
 	var reply models.Comment
 
 	err := tx.Model(&models.Comment{}).Where("comment_id = ?", commentID).Select("author_id").Find(&reply).Error
@@ -212,7 +261,7 @@ func (r *Dao) getCommentAuthorID(ctx context.Context, tx *gorm.DB, commentID int
 	return reply.AuthorID, nil
 }
 
-func (r *Dao) delComment(ctx context.Context, tx *gorm.DB, commentID int64) error {
+func (r *Dao) delComment(ctx context.Context, tx *gorm.DB, commentID uint32) error {
 	// 执行物理删除
 	return tx.Unscoped().Delete(&models.Comment{}, "comment_id = ?", commentID).Error
 }
@@ -221,7 +270,7 @@ func (r *Dao) addReply(ctx context.Context, tx *gorm.DB, reply *models.Reply) er
 	return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(reply).Error
 }
 
-func (r *Dao) getReplyAuthorID(ctx context.Context, tx *gorm.DB, replyID int64) (int64, error) {
+func (r *Dao) getReplyAuthorID(ctx context.Context, tx *gorm.DB, replyID uint32) (int64, error) {
 	var reply models.Reply
 
 	err := tx.Model(&models.Reply{}).Where("reply_id = ?", replyID).Select("author_id").Find(&reply).Error
@@ -232,7 +281,7 @@ func (r *Dao) getReplyAuthorID(ctx context.Context, tx *gorm.DB, replyID int64) 
 	return reply.AuthorID, nil
 }
 
-func (r *Dao) delReply(ctx context.Context, tx *gorm.DB, replyID int64) error {
+func (r *Dao) delReply(ctx context.Context, tx *gorm.DB, replyID uint32) error {
 	return tx.Unscoped().Delete(&models.Reply{}, "reply_id = ?", replyID).Error
 }
 
@@ -244,7 +293,7 @@ func (r *Dao) addLeaveMsg(ctx context.Context, tx *gorm.DB, msg *models.LeaveMsg
 func (r *Dao) getLeaveMsgList(ctx context.Context, tx *gorm.DB) ([]*models.LeaveMsg, error) {
 	var msgs []*models.LeaveMsg
 
-	err := tx.Model(&models.LeaveMsg{}).Find(&msgs).Error
+	err := tx.Model(&models.LeaveMsg{}).Preload("User").Find(&msgs).Error
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +301,7 @@ func (r *Dao) getLeaveMsgList(ctx context.Context, tx *gorm.DB) ([]*models.Leave
 	return msgs, nil
 }
 
-func (r *Dao) getLeaveMsgAuthorID(ctx context.Context, tx *gorm.DB, MsgID int64) (int64, error) {
+func (r *Dao) getLeaveMsgAuthorID(ctx context.Context, tx *gorm.DB, MsgID uint32) (int64, error) {
 	var msg models.LeaveMsg
 
 	err := tx.Model(&models.LeaveMsg{}).Where("msg_id = ?", MsgID).Select("author_id").Find(&msg).Error
@@ -263,6 +312,43 @@ func (r *Dao) getLeaveMsgAuthorID(ctx context.Context, tx *gorm.DB, MsgID int64)
 	return msg.AuthorID, nil
 }
 
-func (r *Dao) delLeaveMsg(ctx context.Context, tx *gorm.DB, MsgID int64) error {
+func (r *Dao) delLeaveMsg(ctx context.Context, tx *gorm.DB, MsgID uint32) error {
 	return tx.Unscoped().Delete(&models.LeaveMsg{}, "msg_id = ?", MsgID).Error
+}
+
+func (r *Dao) addFriendLink(ctx context.Context, tx *gorm.DB, link *models.FriendLink) error {
+	return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(link).Error
+}
+
+func (r *Dao) delFriendLink(ctx context.Context, tx *gorm.DB, linkID uint32) error {
+	return tx.Unscoped().Delete(&models.FriendLink{}, "link_id = ?", linkID).Error
+}
+
+func (r *Dao) getFriendLinks(ctx context.Context, tx *gorm.DB, page int, pageSize int) ([]*models.FriendLink, int64, error) {
+	var links []*models.FriendLink
+	var total int64
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	err := tx.Model(&models.FriendLink{}).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = tx.Offset(offset).Limit(pageSize).Find(&links).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return links, total, nil
+}
+
+func (r *Dao) updateFriendLink(ctx context.Context, tx *gorm.DB, linkID uint32, link *models.FriendLink) error {
+	return tx.Model(&models.FriendLink{}).Where("link_id = ?", linkID).Updates(link).Error
 }
